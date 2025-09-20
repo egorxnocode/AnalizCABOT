@@ -11,7 +11,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
 # ===== WEBHOOK НАСТРОЙКИ =====
 # Порт для webhook'ов (каждый бот должен использовать уникальный порт)
-WEBHOOK_PORT=8080
+WEBHOOK_PORT=8085
 
 # ===== GOOGLE API НАСТРОЙКИ =====
 # Путь к файлу credentials (относительно контейнера)
@@ -39,15 +39,15 @@ WEBHOOK_URL_9=https://system9.com/webhook
 # ===== ПРИМЕРЫ ДЛЯ НЕСКОЛЬКИХ БОТОВ =====
 # Бот 1:
 # BOT_NAME=bot1
-# WEBHOOK_PORT=8080
+# WEBHOOK_PORT=8085
 # TELEGRAM_BOT_TOKEN=bot1_token
 
 # Бот 2:
 # BOT_NAME=bot2  
-# WEBHOOK_PORT=8081
+# WEBHOOK_PORT=8086
 # TELEGRAM_BOT_TOKEN=bot2_token
 
 # Бот 3:
 # BOT_NAME=bot3
-# WEBHOOK_PORT=8082
+# WEBHOOK_PORT=8087
 # TELEGRAM_BOT_TOKEN=bot3_token
