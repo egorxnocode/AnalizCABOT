@@ -29,6 +29,7 @@ class TargetAudienceBot:
         self.webhook_service = WebhookService()
         self.n8n_service = N8NWebhookService()
         self.sequential_webhook_service = SequentialWebhookService()
+        self.application = None  # Будет установлено позже в main()
         
         # Настройка N8N webhook если URL есть в конфигурации
         if hasattr(config, 'N8N_OUTGOING_WEBHOOK_URL') and config.N8N_OUTGOING_WEBHOOK_URL:
@@ -37,7 +38,7 @@ class TargetAudienceBot:
         self.user_sessions = {}  # Хранение данных пользователей
         
         # Запускаем webhook сервер
-        self.webhook_server = WebhookServer(self, host='0.0.0.0', port=8080)
+        self.webhook_server = WebhookServer(self, host='0.0.0.0', port=config.WEBHOOK_PORT)
         self.webhook_server.start_server()
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -250,6 +251,11 @@ class TargetAudienceBot:
     async def _notify_user_about_spreadsheet(self, user_id, spreadsheet_info):
         """Уведомление пользователя о готовой таблице"""
         try:
+            # Проверяем что application инициализировано
+            if not self.application:
+                logger.error(f'Application не инициализировано для пользователя {user_id}')
+                return
+                
             if spreadsheet_info['status'] == 'success':
                 # Успешное создание таблицы
                 spreadsheet_id = spreadsheet_info['spreadsheet_id']
@@ -296,6 +302,11 @@ class TargetAudienceBot:
     async def _start_sequential_webhooks(self, user_id: int, spreadsheet_info: Dict[str, Any]):
         """Запускает последовательную отправку webhook'ов после получения таблицы от N8N"""
         try:
+            # Проверяем что application инициализировано
+            if not self.application:
+                logger.error(f'Application не инициализировано для пользователя {user_id}')
+                return
+                
             # Получаем данные пользователя из сессии
             if user_id not in self.user_sessions:
                 logger.error(f'Сессия пользователя {user_id} не найдена')
@@ -394,6 +405,9 @@ def main():
     
     # Создание приложения
     application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+    
+    # Устанавливаем application в бота для доступа к bot API
+    bot.application = application
     
     # Регистрация обработчиков
     application.add_handler(CommandHandler("start", bot.start))

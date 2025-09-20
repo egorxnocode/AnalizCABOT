@@ -7,6 +7,9 @@ load_dotenv()
 # Telegram настройки
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
+# Webhook сервер настройки
+WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', 8080))
+
 # Google API настройки
 GOOGLE_CREDENTIALS_FILE = os.getenv('GOOGLE_CREDENTIALS_FILE', 'credentials.json')
 GOOGLE_DRIVE_FOLDER_ID = os.getenv('GOOGLE_DRIVE_FOLDER_ID')
