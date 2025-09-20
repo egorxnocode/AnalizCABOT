@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import logging
 import asyncio
 import threading
+import concurrent.futures
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -29,11 +30,18 @@ class WebhookServer:
                 logger.info(f"📨 Получен N8N webhook: {data}")
                 
                 # Запускаем обработку в asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                success = loop.run_until_complete(self.bot.handle_n8n_webhook(data))
-                loop.close()
+                try:
+                    # Пытаемся получить текущий loop
+                    loop = asyncio.get_running_loop()
+                    # Используем run_coroutine_threadsafe для безопасного выполнения
+                    future = asyncio.run_coroutine_threadsafe(self.bot.handle_n8n_webhook(data), loop)
+                    success = future.result(timeout=10)
+                except RuntimeError:
+                    # Если нет активного loop, создаем новый
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    success = loop.run_until_complete(self.bot.handle_n8n_webhook(data))
+                    loop.close()
                 
                 if success:
                     return jsonify({'status': 'success', 'message': 'N8N webhook processed'}), 200
@@ -55,11 +63,18 @@ class WebhookServer:
                 logger.info(f"📨 Получен ответ от системы: {data}")
                 
                 # Запускаем обработку в asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                success = loop.run_until_complete(self.bot.handle_webhook_response(data))
-                loop.close()
+                try:
+                    # Пытаемся получить текущий loop
+                    loop = asyncio.get_running_loop()
+                    # Используем run_coroutine_threadsafe для безопасного выполнения
+                    future = asyncio.run_coroutine_threadsafe(self.bot.handle_webhook_response(data), loop)
+                    success = future.result(timeout=10)
+                except RuntimeError:
+                    # Если нет активного loop, создаем новый
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    success = loop.run_until_complete(self.bot.handle_webhook_response(data))
+                    loop.close()
                 
                 if success:
                     return jsonify({'status': 'success', 'message': 'System response processed'}), 200
