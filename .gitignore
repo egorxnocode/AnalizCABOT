@@ -1,0 +1,52 @@
+# ===== КОНФИДЕНЦИАЛЬНЫЕ ФАЙЛЫ =====
+.env
+credentials.json
+*.key
+*.pem
+
+# ===== ЛОГИ И ВРЕМЕННЫЕ ФАЙЛЫ =====
+*.log
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+
+# ===== IDE И РЕДАКТОРЫ =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== ОПЕРАЦИОННАЯ СИСТЕМА =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ===== PYTHON =====
+*.egg-info/
+build/
+dist/
+*.egg
+
+# ===== NODE.JS (если используется) =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== DOCKER =====
+.dockerignore
+docker-compose.override.yml
+
+# ===== ДРУГОЕ =====
+*.bak
+*.tmp
+*.orig
