@@ -92,6 +92,21 @@ class SequentialWebhookService:
                                         spreadsheet_info: Dict[str, Any],
                                         webhook_name: str, user_id: int) -> Dict[str, Any]:
         """Подготавливает данные для отправки с информацией о таблице"""
+        
+        # Функция для безопасного преобразования значений в JSON-сериализуемые
+        def safe_json_value(value):
+            if hasattr(value, 'isoformat'):  # datetime объект
+                return value.isoformat()
+            elif not isinstance(value, (str, int, float, bool, type(None))):
+                return str(value)
+            return value
+        
+        # Безопасно получаем и преобразуем все значения
+        spreadsheet_id = safe_json_value(spreadsheet_info.get('spreadsheet_id', ''))
+        spreadsheet_url = safe_json_value(spreadsheet_info.get('spreadsheet_url', ''))
+        sheet_title = safe_json_value(spreadsheet_info.get('sheet_title', ''))
+        created_at = safe_json_value(spreadsheet_info.get('created_at', ''))
+        
         return {
             "event_type": "target_audience_analysis",
             "timestamp": datetime.now().isoformat(),
@@ -104,10 +119,10 @@ class SequentialWebhookService:
                 "ideal_client_portrait": user_data.get('ideal_client', '')
             },
             "spreadsheet_info": {
-                "spreadsheet_id": spreadsheet_info.get('spreadsheet_id', ''),
-                "spreadsheet_url": spreadsheet_info.get('spreadsheet_url', ''),
-                "sheetid": spreadsheet_info.get('sheet_title', ''),
-                "created_at": spreadsheet_info.get('created_at', '')
+                "spreadsheet_id": spreadsheet_id,
+                "spreadsheet_url": spreadsheet_url,
+                "sheetid": sheet_title,
+                "created_at": created_at
             },
             "analysis_data": {
                 "analysis_date": datetime.now().strftime("%d.%m.%Y"),
@@ -128,6 +143,9 @@ class SequentialWebhookService:
             True если получен ответ 'ready', False иначе
         """
         try:
+            # Логируем payload для отладки
+            logger.info(f"📤 Отправка webhook {webhook_name} с payload: {payload}")
+            
             connector = aiohttp.TCPConnector(ssl=self.ssl_context)
             async with aiohttp.ClientSession(timeout=self.timeout, connector=connector) as session:
                 async with session.post(
