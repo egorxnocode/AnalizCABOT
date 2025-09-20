@@ -1,0 +1,47 @@
+name: Docker Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      run: |
+        docker build -t telegram-bot-ca:test .
+        
+    - name: Test Docker image
+      run: |
+        # Создаем тестовый .env файл
+        cp env_example .env
+        echo "TELEGRAM_BOT_TOKEN=test_token" >> .env
+        
+        # Создаем фиктивный credentials.json
+        echo '{"type":"service_account","project_id":"test"}' > credentials.json
+        
+        # Проверяем что образ собирается без ошибок
+        docker-compose config
+        
+    - name: Security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: telegram-bot-ca:test
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
