@@ -55,7 +55,7 @@ class SequentialWebhookService:
         await progress_callback(f"🚀 Начинаю отправку в {len(webhook_list)} систем...")
         
         for i, (webhook_name, webhook_url) in enumerate(webhook_list, 1):
-            await progress_callback(f"📤 Отправляю в систему {i}/{len(webhook_list)} ({webhook_name})...")
+            await progress_callback(f"📤 Отправляю в систему {i}/{len(webhook_list)} ({webhook_name})...\n⏰ Жду ответа до 3 минут")
             
             # Подготавливаем данные с информацией о таблице
             payload = self._prepare_payload_with_spreadsheet(user_data, spreadsheet_info, webhook_name, user_id)
@@ -67,7 +67,14 @@ class SequentialWebhookService:
             if success:
                 await progress_callback(f"✅ Система {i}/{len(webhook_list)} обработана успешно")
             else:
-                await progress_callback(f"❌ Ошибка в системе {i}/{len(webhook_list)}")
+                await progress_callback(f"❌ Система {i}/{len(webhook_list)} не ответила за 3 минуты")
+                await progress_callback(f"🛑 ОСТАНОВКА: Прекращаю отправку в остальные системы")
+                
+                # Помечаем все оставшиеся webhook'и как неуспешные
+                for remaining_webhook, _ in webhook_list[i:]:
+                    results[remaining_webhook] = False
+                
+                break  # Прекращаем цикл при неудаче
                 
             # Небольшая пауза между отправками
             await asyncio.sleep(0.5)
@@ -152,9 +159,9 @@ class SequentialWebhookService:
             return False
     
     async def _wait_for_webhook_response(self, webhook_name: str, user_id: int, 
-                                       timeout_seconds: int = 25) -> bool:
+                                       timeout_seconds: int = 180) -> bool:
         """
-        Ждет ответа от webhook'а в течение указанного времени
+        Ждет ответа от webhook'а в течение 3 минут (180 секунд)
         
         Returns:
             True если получен ответ 'ready', False при таймауте
