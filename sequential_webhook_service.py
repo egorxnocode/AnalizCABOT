@@ -143,8 +143,6 @@ class SequentialWebhookService:
             True если получен ответ 'ready', False иначе
         """
         try:
-            # Логируем payload для отладки
-            logger.info(f"📤 Отправка webhook {webhook_name} с payload: {payload}")
             
             connector = aiohttp.TCPConnector(ssl=self.ssl_context)
             async with aiohttp.ClientSession(timeout=self.timeout, connector=connector) as session:
