@@ -68,13 +68,10 @@ class SequentialWebhookService:
                 await progress_callback(f"✅ Система {i}/{len(webhook_list)} обработана успешно")
             else:
                 await progress_callback(f"❌ Система {i}/{len(webhook_list)} не ответила за 3 минуты")
-                await progress_callback(f"🛑 ОСТАНОВКА: Прекращаю отправку в остальные системы")
+                await progress_callback(f"🔄 ОТЛАДКА: Продолжаю отправку в остальные системы для тестирования")
                 
-                # Помечаем все оставшиеся webhook'и как неуспешные
-                for remaining_webhook, _ in webhook_list[i:]:
-                    results[remaining_webhook] = False
-                
-                break  # Прекращаем цикл при неудаче
+                # ВРЕМЕННО: НЕ прекращаем цикл при неудаче - продолжаем для отладки
+                # break  # Закомментировано для отладки
                 
             # Небольшая пауза между отправками
             await asyncio.sleep(0.5)
@@ -143,8 +140,9 @@ class SequentialWebhookService:
             True если получен ответ 'ready', False иначе
         """
         try:
-            # Логируем payload для отладки
-            logger.info(f"📤 Отправка webhook {webhook_name} с payload: {payload}")
+            # Логируем payload для отладки (только основную информацию)
+            logger.info(f"📤 ОТЛАДКА: Отправка webhook {webhook_name} в {webhook_url}")
+            logger.info(f"📋 Данные: user_id={payload.get('user_id')}, event_type={payload.get('event_type')}")
             
             connector = aiohttp.TCPConnector(ssl=self.ssl_context)
             async with aiohttp.ClientSession(timeout=self.timeout, connector=connector) as session:
@@ -160,7 +158,9 @@ class SequentialWebhookService:
                         logger.info(f"✅ Webhook {webhook_name} отправлен (статус: {response.status})")
                         
                         # Ждем ответа от webhook'а в течение таймаута
-                        return await self._wait_for_webhook_response(webhook_name, user_id)
+                        result = await self._wait_for_webhook_response(webhook_name, user_id)
+                        logger.info(f"📥 ОТЛАДКА: Ответ от {webhook_name}: {'ready' if result else 'таймаут'}")
+                        return result
                     else:
                         response_text = await response.text()
                         logger.error(f"❌ Ошибка отправки {webhook_name}: {response.status} - {response_text}")
