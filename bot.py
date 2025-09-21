@@ -294,13 +294,9 @@ class TargetAudienceBot:
                 )
                 
                 # Предложение начать новый анализ
-                keyboard_new = [[InlineKeyboardButton("🎯 Начать новый анализ", callback_data='start_analysis')]]
-                reply_markup_new = InlineKeyboardMarkup(keyboard_new)
-                
                 await self.application.bot.send_message(
                     chat_id=user_id,
-                    text="Хотите провести еще один анализ?",
-                    reply_markup=reply_markup_new
+                    text="Хотите провести еще один анализ? Напишите /start"
                 )
                 
             else:
@@ -377,13 +373,9 @@ class TargetAudienceBot:
             )
             
             # Предложение начать новый анализ
-            keyboard_new = [[InlineKeyboardButton("🎯 Начать новый анализ", callback_data='start_analysis')]]
-            reply_markup_new = InlineKeyboardMarkup(keyboard_new)
-            
             await self.application.bot.send_message(
                 chat_id=user_id,
-                text="Хотите провести еще один анализ?",
-                reply_markup=reply_markup_new
+                text="Хотите провести еще один анализ? Напишите /start"
             )
             
             # Очищаем сессию пользователя
@@ -455,13 +447,9 @@ class TargetAudienceBot:
             )
             
             # Предложение начать новый анализ
-            keyboard_new = [[InlineKeyboardButton("🎯 Начать новый анализ", callback_data='start_analysis')]]
-            reply_markup_new = InlineKeyboardMarkup(keyboard_new)
-            
             await self.application.bot.send_message(
                 chat_id=user_id,
-                text="Хотите провести еще один анализ?",
-                reply_markup=reply_markup_new
+                text="Хотите провести еще один анализ? Напишите /start"
             )
             
             # Очищаем сессию пользователя
