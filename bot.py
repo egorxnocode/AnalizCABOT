@@ -3,8 +3,10 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, Any
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.error import NetworkError, TimedOut, RetryAfter
 from google_minimal_service import GoogleMinimalService
 from webhook_service import WebhookService
 from n8n_webhook_service import N8NWebhookService
@@ -24,6 +26,24 @@ WAITING_FOR_PROFESSION = 1
 WAITING_FOR_SEGMENTATION = 2
 WAITING_FOR_IDEAL_CLIENT = 3
 
+async def retry_telegram_request(func, max_retries=3, delay=1):
+    """Повторяет запрос к Telegram API при ошибках соединения"""
+    for attempt in range(max_retries):
+        try:
+            return await func()
+        except (NetworkError, TimedOut) as e:
+            if attempt == max_retries - 1:
+                raise e
+            logger.warning(f"Попытка {attempt + 1}/{max_retries} не удалась: {e}. Повтор через {delay} сек...")
+            await asyncio.sleep(delay)
+            delay *= 2  # Экспоненциальная задержка
+        except RetryAfter as e:
+            logger.warning(f"Rate limit. Ждем {e.retry_after} секунд...")
+            await asyncio.sleep(e.retry_after)
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при запросе к Telegram: {e}")
+            raise e
+
 class TargetAudienceBot:
     def __init__(self):
         self.google_service = GoogleMinimalService()
@@ -41,6 +61,26 @@ class TargetAudienceBot:
         # Запускаем webhook сервер
         self.webhook_server = WebhookServer(self, host='0.0.0.0', port=config.WEBHOOK_PORT)
         self.webhook_server.start_server()
+    
+    async def safe_send_message(self, chat_id: int, text: str, reply_markup=None, max_retries=3):
+        """Безопасная отправка сообщения с повторными попытками"""
+        try:
+            if not self.application:
+                logger.error(f'Application не инициализировано для отправки сообщения в чат {chat_id}')
+                return False
+                
+            await retry_telegram_request(
+                lambda: self.application.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    reply_markup=reply_markup
+                ),
+                max_retries=max_retries
+            )
+            return True
+        except Exception as e:
+            logger.error(f'Ошибка отправки сообщения в чат {chat_id}: {e}')
+            return False
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
@@ -53,9 +93,12 @@ class TargetAudienceBot:
         keyboard = [[InlineKeyboardButton("🎯 Начать анализ ЦА", callback_data='start_analysis')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(
-            config.WELCOME_MESSAGE,
-            reply_markup=reply_markup
+        # Используем retry для отправки сообщения
+        await retry_telegram_request(
+            lambda: update.message.reply_text(
+                config.WELCOME_MESSAGE,
+                reply_markup=reply_markup
+            )
         )
 
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -503,7 +546,37 @@ class TargetAudienceBot:
 
     async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик ошибок"""
+        import traceback
+        
+        # Логируем полную информацию об ошибке
         logger.error(f"Update {update} caused error {context.error}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Если это ошибка пула соединений, пытаемся переотправить
+        error_message = str(context.error)
+        if "Pool timeout" in error_message or "connection pool" in error_message.lower():
+            logger.warning("Обнаружена ошибка пула соединений, попытка повторной отправки...")
+            
+            # Ждем немного и пытаемся ответить пользователю
+            try:
+                await asyncio.sleep(1)
+                if update and update.effective_chat:
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="⚠️ Временные проблемы с соединением. Попробуйте еще раз через несколько секунд."
+                    )
+            except Exception as retry_error:
+                logger.error(f"Не удалось отправить сообщение об ошибке: {retry_error}")
+        
+        # Для других типов ошибок
+        elif update and update.effective_chat:
+            try:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text="❌ Произошла ошибка. Попробуйте команду /start для перезапуска."
+                )
+            except Exception as notify_error:
+                logger.error(f"Не удалось уведомить пользователя об ошибке: {notify_error}")
 
 def main():
     """Запуск бота"""
@@ -515,8 +588,20 @@ def main():
     # Создание экземпляра бота
     bot = TargetAudienceBot()
     
-    # Создание приложения
-    application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+    # Создание приложения с увеличенным пулом соединений
+    from telegram.ext import ApplicationBuilder
+    from telegram.request import HTTPXRequest
+    
+    # Настройка HTTP клиента с увеличенными лимитами
+    request = HTTPXRequest(
+        connection_pool_size=config.CONNECTION_POOL_SIZE,
+        pool_timeout=config.POOL_TIMEOUT,
+        read_timeout=config.READ_TIMEOUT,
+        write_timeout=config.WRITE_TIMEOUT,
+        connect_timeout=config.CONNECT_TIMEOUT
+    )
+    
+    application = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).request(request).build()
     
     # Устанавливаем application в бота для доступа к bot API
     bot.application = application
@@ -529,7 +614,15 @@ def main():
     
     # Запуск бота
     print("🤖 Бот запущен! Нажмите Ctrl+C для остановки.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    # Настройки polling с улучшенной обработкой ошибок
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,  # Пропускаем старые обновления при запуске
+        pool_timeout=30,            # Таймаут для пула соединений
+        read_timeout=30,            # Таймаут чтения
+        write_timeout=30            # Таймаут записи
+    )
 
 if __name__ == '__main__':
     main()

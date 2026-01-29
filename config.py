@@ -10,6 +10,13 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 # Webhook сервер настройки
 WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', 8085))
 
+# Настройки пула соединений для Telegram API
+CONNECTION_POOL_SIZE = int(os.getenv('CONNECTION_POOL_SIZE', 20))
+POOL_TIMEOUT = float(os.getenv('POOL_TIMEOUT', 30.0))
+READ_TIMEOUT = float(os.getenv('READ_TIMEOUT', 30.0))
+WRITE_TIMEOUT = float(os.getenv('WRITE_TIMEOUT', 30.0))
+CONNECT_TIMEOUT = float(os.getenv('CONNECT_TIMEOUT', 10.0))
+
 # Google API настройки
 GOOGLE_CREDENTIALS_FILE = os.getenv('GOOGLE_CREDENTIALS_FILE', 'credentials.json')
 GOOGLE_DRIVE_FOLDER_ID = os.getenv('GOOGLE_DRIVE_FOLDER_ID')

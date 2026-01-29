@@ -12,8 +12,18 @@ RUN apt-get update && apt-get install -y \
 # Копируем файл зависимостей
 COPY requirements.txt .
 
-# Устанавливаем Python зависимости
-RUN pip install --no-cache-dir -r requirements.txt
+# Устанавливаем Python зависимости с оптимизацией
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Настройки для улучшения производительности Python
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONIOENCODING=utf-8
+
+# Настройки для HTTP соединений
+ENV HTTPX_POOL_CONNECTIONS=25
+ENV HTTPX_POOL_MAXSIZE=25
 
 # Копируем исходный код
 COPY *.py ./
