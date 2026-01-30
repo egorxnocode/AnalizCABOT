@@ -81,6 +81,46 @@ class TargetAudienceBot:
         except Exception as e:
             logger.error(f'Ошибка отправки сообщения в чат {chat_id}: {e}')
             return False
+    
+    async def cleanup_connection_pool(self):
+        """Очистка пула соединений при проблемах"""
+        try:
+            if self.application and hasattr(self.application.bot, '_request'):
+                logger.info("Попытка очистки пула соединений...")
+                
+                # Закрываем текущие соединения
+                if hasattr(self.application.bot._request, '_client'):
+                    await self.application.bot._request._client.aclose()
+                    logger.info("Пул соединений очищен")
+                    return True
+            return False
+        except Exception as e:
+            logger.error(f"Ошибка очистки пула соединений: {e}")
+            return False
+    
+    def normalize_spreadsheet_info(self, spreadsheet_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Нормализация данных о таблице для совместимости"""
+        normalized = spreadsheet_info.copy()
+        
+        # Исправляем неправильное название поля sheetid -> sheet_title
+        if 'sheetid' in normalized and 'sheet_title' not in normalized:
+            normalized['sheet_title'] = normalized.pop('sheetid')
+            logger.warning("Исправлено поле 'sheetid' на 'sheet_title' в spreadsheet_info")
+        
+        # Устанавливаем значения по умолчанию для обязательных полей
+        defaults = {
+            'spreadsheet_id': 'not_available',
+            'spreadsheet_url': 'https://docs.google.com/spreadsheets/d/not_available',
+            'sheet_title': 'Таблица не создана',
+            'created_at': datetime.now().isoformat()
+        }
+        
+        for key, default_value in defaults.items():
+            if key not in normalized or not normalized[key]:
+                normalized[key] = default_value
+                logger.info(f"Установлено значение по умолчанию для {key}: {default_value}")
+        
+        return normalized
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
@@ -100,6 +140,26 @@ class TargetAudienceBot:
                 reply_markup=reply_markup
             )
         )
+
+    async def admin_cleanup(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Админская команда для очистки пула соединений"""
+        user_id = update.effective_user.id
+        
+        # Простая проверка на админа (можно улучшить)
+        admin_ids = [8098626207]  # Замените на ваш Telegram ID
+        
+        if user_id not in admin_ids:
+            await update.message.reply_text("❌ У вас нет прав для выполнения этой команды")
+            return
+        
+        await update.message.reply_text("🧹 Очищаю пул соединений...")
+        
+        success = await self.cleanup_connection_pool()
+        
+        if success:
+            await update.message.reply_text("✅ Пул соединений очищен успешно")
+        else:
+            await update.message.reply_text("❌ Не удалось очистить пул соединений")
 
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик нажатий на кнопки"""
@@ -317,6 +377,9 @@ class TargetAudienceBot:
                 return
                 
             if spreadsheet_info['status'] == 'success':
+                # Нормализуем данные о таблице
+                spreadsheet_info = self.normalize_spreadsheet_info(spreadsheet_info)
+                
                 # Успешное создание таблицы
                 spreadsheet_id = spreadsheet_info['spreadsheet_id']
                 spreadsheet_url = spreadsheet_info['spreadsheet_url']
@@ -370,6 +433,9 @@ class TargetAudienceBot:
                 
             session = self.user_sessions[user_id]
             user_data = session.get('user_data', {})
+            
+            # Нормализуем данные о таблице
+            spreadsheet_info = self.normalize_spreadsheet_info(spreadsheet_info)
             
             # Уведомляем о готовой таблице
             spreadsheet_url = spreadsheet_info['spreadsheet_url']
@@ -555,15 +621,19 @@ class TargetAudienceBot:
         # Если это ошибка пула соединений, пытаемся переотправить
         error_message = str(context.error)
         if "Pool timeout" in error_message or "connection pool" in error_message.lower():
-            logger.warning("Обнаружена ошибка пула соединений, попытка повторной отправки...")
+            logger.warning("Обнаружена ошибка пула соединений, попытка очистки...")
+            
+            # Пытаемся очистить пул
+            cleanup_success = await self.cleanup_connection_pool()
             
             # Ждем немного и пытаемся ответить пользователю
             try:
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
                 if update and update.effective_chat:
+                    status_msg = "🔄 Пул очищен" if cleanup_success else "⚠️ Проблемы с соединением"
                     await context.bot.send_message(
                         chat_id=update.effective_chat.id,
-                        text="⚠️ Временные проблемы с соединением. Попробуйте еще раз через несколько секунд."
+                        text=f"{status_msg}. Попробуйте еще раз через несколько секунд."
                     )
             except Exception as retry_error:
                 logger.error(f"Не удалось отправить сообщение об ошибке: {retry_error}")
@@ -608,6 +678,7 @@ def main():
     
     # Регистрация обработчиков
     application.add_handler(CommandHandler("start", bot.start))
+    application.add_handler(CommandHandler("cleanup", bot.admin_cleanup))  # Админская команда
     application.add_handler(CallbackQueryHandler(bot.button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_message))
     application.add_error_handler(bot.error_handler)

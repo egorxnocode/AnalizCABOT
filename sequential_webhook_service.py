@@ -121,7 +121,7 @@ class SequentialWebhookService:
             "spreadsheet_info": {
                 "spreadsheet_id": spreadsheet_id,
                 "spreadsheet_url": spreadsheet_url,
-                "sheetid": sheet_title,
+                "sheet_title": sheet_title,
                 "created_at": created_at
             },
             "analysis_data": {
