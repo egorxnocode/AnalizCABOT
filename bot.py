@@ -161,6 +161,46 @@ class TargetAudienceBot:
         else:
             await update.message.reply_text("❌ Не удалось очистить пул соединений")
 
+    async def admin_debug_n8n(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Админская команда для диагностики N8N"""
+        user_id = update.effective_user.id
+        
+        # Простая проверка на админа
+        admin_ids = [8098626207]  # Замените на ваш Telegram ID
+        
+        if user_id not in admin_ids:
+            await update.message.reply_text("❌ У вас нет прав для выполнения этой команды")
+            return
+        
+        # Собираем информацию о состоянии N8N
+        pending_requests = self.n8n_service.pending_requests
+        active_sessions = len(self.user_sessions)
+        
+        debug_info = f"""🔍 **Диагностика N8N:**
+        
+📊 **Статистика:**
+• Активных N8N запросов: {len(pending_requests)}
+• Активных пользовательских сессий: {active_sessions}
+
+📋 **Активные N8N запросы:**
+"""
+        
+        if pending_requests:
+            for req_id, req_data in pending_requests.items():
+                status = req_data.get('status', 'unknown')
+                created_at = req_data.get('created_at', 'unknown')
+                debug_info += f"• {req_id}: {status} (создан: {created_at})\n"
+        else:
+            debug_info += "• Нет активных запросов\n"
+        
+        debug_info += f"""
+🔗 **Настройки N8N:**
+• Outgoing URL: {getattr(self.n8n_service, 'outgoing_webhook_url', 'НЕ УСТАНОВЛЕН')}
+• Webhook endpoint: /webhook/n8n/spreadsheet
+"""
+        
+        await update.message.reply_text(debug_info)
+
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик нажатий на кнопки"""
         query = update.callback_query
@@ -356,8 +396,13 @@ class TargetAudienceBot:
             spreadsheet_info = self.n8n_service.get_spreadsheet_info(request_id)
             
             if not spreadsheet_info:
-                logger.error(f'Информация о таблице не найдена для request_id: {request_id}')
+                logger.error(f'❌ Информация о таблице не найдена для request_id: {request_id}')
+                logger.error(f'🔍 Доступные request_id в N8N сервисе: {list(self.n8n_service.pending_requests.keys())}')
                 return False
+            
+            logger.info(f'📋 Получена информация о таблице из N8N сервиса:')
+            logger.info(f'  - Request ID: {request_id}')
+            logger.info(f'  - Spreadsheet Info: {spreadsheet_info}')
             
             # Уведомляем пользователя о готовой таблице и запускаем последовательные webhook'и  
             await self._start_sequential_webhooks(user_id, spreadsheet_info)
@@ -583,7 +628,9 @@ class TargetAudienceBot:
             if user_id in self.user_sessions:
                 session = self.user_sessions[user_id]
                 if session.get('n8n_request_id') == request_id:
-                    logger.warning(f'Таймаут N8N для пользователя {user_id}, request_id: {request_id}')
+                    logger.warning(f'⏰ Таймаут N8N для пользователя {user_id}, request_id: {request_id}')
+                    logger.warning(f'🔍 Статус N8N запроса: {self.n8n_service.pending_requests.get(request_id, "НЕ НАЙДЕН")}')
+                    logger.warning(f'📊 Всего активных N8N запросов: {len(self.n8n_service.pending_requests)}')
                     
                     # Проверяем что application инициализировано
                     if not self.application:
@@ -679,6 +726,7 @@ def main():
     # Регистрация обработчиков
     application.add_handler(CommandHandler("start", bot.start))
     application.add_handler(CommandHandler("cleanup", bot.admin_cleanup))  # Админская команда
+    application.add_handler(CommandHandler("debug_n8n", bot.admin_debug_n8n))  # Диагностика N8N
     application.add_handler(CallbackQueryHandler(bot.button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_message))
     application.add_error_handler(bot.error_handler)

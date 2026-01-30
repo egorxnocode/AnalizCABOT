@@ -29,6 +29,15 @@ class WebhookServer:
                 
                 logger.info(f"📨 Получен N8N webhook: {data}")
                 
+                # Детальное логирование полученных данных
+                logger.info(f"🔍 N8N webhook детали:")
+                logger.info(f"  - request_id: {data.get('request_id', 'НЕ УКАЗАН')}")
+                logger.info(f"  - status: {data.get('status', 'НЕ УКАЗАН')}")
+                logger.info(f"  - spreadsheet_id: {data.get('spreadsheet_id', 'НЕ УКАЗАН')}")
+                logger.info(f"  - spreadsheet_url: {data.get('spreadsheet_url', 'НЕ УКАЗАН')}")
+                logger.info(f"  - sheet_title: {data.get('sheet_title', 'НЕ УКАЗАН')}")
+                logger.info(f"  - error_message: {data.get('error_message', 'НЕТ')}")
+                
                 # Запускаем обработку в asyncio
                 try:
                     # Пытаемся получить текущий loop

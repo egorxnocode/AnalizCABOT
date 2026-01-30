@@ -126,6 +126,27 @@ class N8NWebhookService:
                 'created_at': datetime.now()
             }
             
+            # Проверяем валидность критически важных данных
+            missing_fields = []
+            if not spreadsheet_info['spreadsheet_id']:
+                missing_fields.append('spreadsheet_id')
+            if not spreadsheet_info['spreadsheet_url']:
+                missing_fields.append('spreadsheet_url')
+            if not spreadsheet_info['sheet_title']:
+                missing_fields.append('sheet_title')
+            
+            if missing_fields:
+                logger.warning(f'⚠️ N8N webhook содержит пустые обязательные поля: {missing_fields}')
+                logger.warning(f'🔍 Полученные данные: {webhook_data}')
+                
+                # Устанавливаем значения по умолчанию для пустых полей
+                if not spreadsheet_info['spreadsheet_id']:
+                    spreadsheet_info['spreadsheet_id'] = 'not_available'
+                if not spreadsheet_info['spreadsheet_url']:
+                    spreadsheet_info['spreadsheet_url'] = 'https://docs.google.com/spreadsheets/d/not_available'
+                if not spreadsheet_info['sheet_title']:
+                    spreadsheet_info['sheet_title'] = 'Таблица не создана'
+            
             # Обновляем статус запроса
             self.pending_requests[request_id].update({
                 'status': 'completed',
@@ -133,9 +154,14 @@ class N8NWebhookService:
                 'completed_at': datetime.now()
             })
             
-            logger.info(f'Получена информация о таблице для request_id: {request_id}')
-            logger.info(f'Spreadsheet ID: {spreadsheet_info["spreadsheet_id"]}')
-            logger.info(f'Spreadsheet URL: {spreadsheet_info["spreadsheet_url"]}')
+            logger.info(f'✅ Получена информация о таблице для request_id: {request_id}')
+            logger.info(f'📊 Детали таблицы:')
+            logger.info(f'  - Spreadsheet ID: {spreadsheet_info["spreadsheet_id"]}')
+            logger.info(f'  - Spreadsheet URL: {spreadsheet_info["spreadsheet_url"]}')
+            logger.info(f'  - Sheet Title: {spreadsheet_info["sheet_title"]}')
+            logger.info(f'  - Status: {spreadsheet_info["status"]}')
+            logger.info(f'  - Error Message: {spreadsheet_info["error_message"]}')
+            logger.info(f'  - Created At: {spreadsheet_info["created_at"]}')
             
             return True
             
